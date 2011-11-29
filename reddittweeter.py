@@ -6,6 +6,7 @@ import time
 import urllib
 from calendar import timegm
 from datetime import datetime, timedelta
+from itertools import chain
 from xml.sax.saxutils import unescape as unescape_html
 
 import tweepy, tweepy.error
@@ -89,20 +90,14 @@ def tweet_item(entry):
         else:
             # add all of the extra tokens that fit within the length
             # limit
+            message = title + message_postfix
             for extra in extras:
-                if len(title) + len(extra) + len(message_postfix) < maxlength:
-                    title += extra
+                if len(message) + len(extra) < maxlength:
+                    message += extra
                 else:
                     break
-            message = "%s%s" % (title, message_postfix)
 
-            yield data['name'], message
-
-
-def _flatiter(x):
-    for y in x:
-        for z in y:
-            yield z
+        yield data['name'], message
 
 
 def main(sourceurl, twitter_consumer, twitter_secret,
@@ -111,7 +106,6 @@ def main(sourceurl, twitter_consumer, twitter_secret,
     Session = sessionmaker(bind=engine)
     session = Session()
     Base.metadata.create_all(engine)
-
 
     auth = tweepy.OAuthHandler(twitter_consumer, twitter_secret)
     auth.set_access_token(twitter_access_key, twitter_access_secret)
@@ -127,7 +121,7 @@ def main(sourceurl, twitter_consumer, twitter_secret,
 
     numtweets = 0
 
-    for msg_id, message in _flatiter(tweet_item(x) for x in parsed):
+    for msg_id, message in chain.from_iterable(tweet_item(x) for x in parsed):
         existing = session.query(Article).filter_by(id = msg_id).first()
         if existing and debug:
             print "Skipping %r" % msg_id
